@@ -10,12 +10,37 @@ import { Modal } from "@/components/Modal";
 import { DragTask } from "@/components/DragTask";
 import { DropColumn } from "@/components/DropColumn";
 
-const COLS: { id: ColumnId; name: string; tone: string }[] = [
-  { id: "BACKLOG", name: "Backlog", tone: "border-slate-200 bg-slate-50" },
-  { id: "TODO", name: "To Do", tone: "border-amber-200 bg-amber-50" },
-  { id: "DOING", name: "In Progress", tone: "border-blue-200 bg-blue-50" },
-  { id: "BLOCKED", name: "Blocked", tone: "border-red-200 bg-red-50" },
-  { id: "DONE", name: "Done", tone: "border-emerald-200 bg-emerald-50" },
+const COLS: { id: ColumnId; name: string; head: string; accent: string }[] = [
+  {
+    id: "BACKLOG",
+    name: "Backlog",
+    head: "bg-slate-100 text-slate-950 border-slate-200",
+    accent: "border-l-slate-500",
+  },
+  {
+    id: "TODO",
+    name: "To Do",
+    head: "bg-amber-100 text-amber-950 border-amber-200",
+    accent: "border-l-amber-500",
+  },
+  {
+    id: "DOING",
+    name: "In Progress",
+    head: "bg-blue-100 text-blue-950 border-blue-200",
+    accent: "border-l-blue-500",
+  },
+  {
+    id: "BLOCKED",
+    name: "Blocked",
+    head: "bg-red-100 text-red-950 border-red-200",
+    accent: "border-l-red-500",
+  },
+  {
+    id: "DONE",
+    name: "Done",
+    head: "bg-emerald-100 text-emerald-950 border-emerald-200",
+    accent: "border-l-emerald-600",
+  },
 ];
 
 function priClass(p: Priority) {
@@ -134,20 +159,24 @@ export function KanbanV2() {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="mt-6 grid gap-4 md:grid-cols-5">
           {COLS.map((col) => (
-            <div key={col.id} className="rounded-2xl border bg-white shadow-sm">
-              <div className={`rounded-t-2xl border-b px-3 py-2 ${col.tone}`}>
+            <div key={col.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div
+                className={`rounded-t-2xl border-b px-3 py-2 ${col.head} border-l-4 ${col.accent}`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-900">{col.name}</div>
-                  <div className="rounded-full bg-white/70 px-2 py-0.5 text-xs text-slate-700">{byCol[col.id].length}</div>
+                  <div className="text-sm font-semibold">{col.name}</div>
+                  <div className="rounded-full border border-black/10 bg-white px-2 py-0.5 text-xs text-slate-900">
+                    {byCol[col.id].length}
+                  </div>
                 </div>
               </div>
 
               <DropColumn id={`col:${col.id}`}>
-                <div className="min-h-[280px] space-y-2 p-3">
+                <div className="min-h-[280px] space-y-2 rounded-b-2xl bg-white p-3">
                   {byCol[col.id].map((t) => (
                     <DragTask key={t.id} id={t.id}>
                       <div
-                        className="cursor-grab rounded-xl border bg-white p-3 hover:bg-slate-50"
+                        className="cursor-grab rounded-xl border border-slate-300 bg-white p-3 shadow-sm hover:bg-slate-50 hover:shadow"
                         onDoubleClick={() => setSelectedId(t.id)}
                       >
                         <div className="flex items-start justify-between gap-2">
