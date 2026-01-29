@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-// Auto-start tasks assigned to Max by moving them to DOING.
-// Assignment rule (for now):
-// - title starts with "Max:" (case-insensitive) OR
-// - tags include "max" OR "ai"
-// Only moves tasks in BACKLOG or TODO.
+// Auto-start tasks by moving them to DOING.
+// Single-user rule (Hassan-only):
+// - Prefer tasks explicitly assigned to Max (title starts with "Max:" or tags include max/ai)
+// - Otherwise, auto-start the highest-priority TODO/BACKLOG task.
+// Safety: only start ONE task per run.
 
 const BASE = process.env.MAX_KANBAN_URL || "https://max-kanban.vercel.app";
 const TOKEN = process.env.MAXKANBAN_TOKEN || "";
@@ -18,6 +18,14 @@ function isAssignedToMax(t) {
 
 function canStart(t) {
   return t && (t.columnId === "BACKLOG" || t.columnId === "TODO");
+}
+
+function priorityRank(p) {
+  const v = String(p || "").toUpperCase();
+  if (v === "URGENT") return 0;
+  if (v === "HIGH") return 1;
+  if (v === "MEDIUM") return 2;
+  return 3;
 }
 
 async function api(path, opts = {}) {
@@ -47,25 +55,34 @@ async function main() {
   }
   const tasks = data.tasks || [];
 
-  const startable = tasks.filter((t) => isAssignedToMax(t) && canStart(t));
-  if (!startable.length) {
-    console.log("No new assigned tasks to start.");
+  // 1) Prefer explicitly-assigned tasks
+  const explicit = tasks
+    .filter((t) => isAssignedToMax(t) && canStart(t))
+    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+  // 2) Otherwise pick the single highest priority startable task
+  const fallback = tasks
+    .filter((t) => canStart(t))
+    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+  const pick = explicit[0] || fallback[0];
+  if (!pick) {
+    console.log("No startable tasks found.");
     return;
   }
 
-  for (const t of startable) {
-    const now = new Date().toISOString();
-    const desc = String(t.description || "");
-    const marker = `\n\n[Max] Auto-started: ${now}`;
-    const nextDesc = desc.includes("[Max] Auto-started") ? desc : (desc + marker).trim();
+  const t = pick;
+  const now = new Date().toISOString();
+  const desc = String(t.description || "");
+  const marker = `\n\n[Max] Auto-started: ${now}`;
+  const nextDesc = desc.includes("[Max] Auto-started") ? desc : (desc + marker).trim();
 
-    await api("/api/tasks", {
-      method: "PATCH",
-      body: JSON.stringify({ id: t.id, columnId: "DOING", description: nextDesc }),
-    });
+  await api("/api/tasks", {
+    method: "PATCH",
+    body: JSON.stringify({ id: t.id, columnId: "DOING", description: nextDesc }),
+  });
 
-    console.log(`Started: ${t.title} (${t.id})`);
-  }
+  console.log(`Started: ${t.title} (${t.id})`);
 }
 
 main().catch((e) => {
