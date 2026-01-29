@@ -38,6 +38,10 @@ yarn-error.log*
 # Allow a non-secret template
 !.env.example
 
+# sqlite db (local)
+/dev.db
+/dev.db-journal
+
 # vercel
 .vercel
 
