@@ -9,6 +9,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Vercel builds may not have DATABASE_URL set; default to a local SQLite file.
+    url: process.env["DATABASE_URL"] ?? "file:./dev.db",
   },
 });
