@@ -50,7 +50,7 @@ async function api(path, opts = {}) {
 async function main() {
   const data = await api("/api/tasks", { method: "GET" });
   if (!data) {
-    console.log("/api/tasks unavailable (likely DB not configured). No-op.");
+    // silent no-op
     return;
   }
   const tasks = data.tasks || [];
@@ -67,7 +67,7 @@ async function main() {
 
   const pick = explicit[0] || fallback[0];
   if (!pick) {
-    console.log("No startable tasks found.");
+    // silent no-op
     return;
   }
 
