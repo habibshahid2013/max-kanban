@@ -14,4 +14,20 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "database",
   },
+  callbacks: {
+    async signIn({ user }) {
+      // Restrict access by email allowlist.
+      // Set ALLOWED_EMAILS to a comma-separated list.
+      const allow = (process.env.ALLOWED_EMAILS ?? "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      // If no allowlist configured, allow all (useful for local dev).
+      if (allow.length === 0) return true;
+
+      const email = (user.email ?? "").toLowerCase();
+      return allow.includes(email);
+    },
+  },
 };
