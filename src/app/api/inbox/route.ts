@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
+import { ensureSchema, q } from "@/lib/db";
 import { parseTaskText } from "@/lib/taskNlp";
 
 function requireToken(req: Request) {
@@ -9,38 +9,27 @@ function requireToken(req: Request) {
   return token && token === expected;
 }
 
-async function ensureSchema() {
-  await sql`
-    create table if not exists tasks (
-      id text primary key,
-      title text not null,
-      description text not null default '',
-      column_id text not null,
-      priority text not null,
-      tags text not null default '',
-      xp_reward int not null default 25,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
-  `;
-}
-
 export async function POST(req: Request) {
-  if (!requireToken(req)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  await ensureSchema();
+  try {
+    if (!requireToken(req)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    await ensureSchema();
 
-  const body = await req.json();
-  const text = String(body.text || "").trim();
-  if (!text) return NextResponse.json({ ok: false, error: "text required" }, { status: 400 });
+    const body = await req.json();
+    const text = String(body.text || "").trim();
+    if (!text) return NextResponse.json({ ok: false, error: "text required" }, { status: 400 });
 
-  const parsed = parseTaskText(text);
-  const id = crypto.randomUUID();
-  const tags = parsed.tags.join(",");
+    const parsed = parseTaskText(text);
+    const id = crypto.randomUUID();
+    const tags = parsed.tags.join(",");
 
-  await sql`
-    insert into tasks (id, title, column_id, priority, tags, xp_reward)
-    values (${id}, ${parsed.title}, ${parsed.columnId}, ${parsed.priority}, ${tags}, ${parsed.xpReward});
-  `;
+    await q(
+      `insert into tasks (id, title, column_id, priority, tags, xp_reward)
+       values ($1,$2,$3,$4,$5,$6)`,
+      [id, parsed.title, parsed.columnId, parsed.priority, tags, parsed.xpReward]
+    );
 
-  return NextResponse.json({ ok: true, id, parsed });
+    return NextResponse.json({ ok: true, id, parsed });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
+  }
 }
