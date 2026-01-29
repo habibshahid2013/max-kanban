@@ -1,46 +1,34 @@
 # Max Kanban — Working Notes (for Hassan)
 
-## How I’ll work going forward (your requested process)
-For each change-set:
-1) Draft plan + options
-2) Run it through a “team review” step:
-   - ChatGPT-style critique (fast, pragmatic)
-   - Claude-style critique (UX, product, edge cases)
-3) Write the consolidated output here (this file)
-4) Implement + deploy
-5) Append a short changelog + what to test
+## Operating workflow (how Max works day-to-day)
+**Goal:** fast execution, clear communication, minimal token waste.
 
-> Note: I can’t literally call OpenAI ChatGPT web or Anthropic Claude web from inside this runtime unless we wire those APIs into a tool. Instead I’ll emulate the ‘team review’ step by spawning isolated sub-agent reviews and capturing their critiques here, then acting on them.
+**For every task (default):**
+1) **Intake**: clarify objective, constraints, definition of done (DoD) *only if required*.
+2) **Team review** (2 passes):
+   - Pass A (ChatGPT-style): blunt, pragmatic, quick wins.
+   - Pass B (Claude-style): UX/product, edge cases, coherence.
+3) **Synthesize**: write decisions + checklist into this NOTES.md.
+4) **Implement**: ship in small slices; each slice ends with a deploy.
+5) **Verify**: quick smoke test + update task status.
+6) **Update board**: move card + append brief progress note.
 
-## Current status (live)
-- App: https://max-kanban.vercel.app
-- Repo: https://github.com/habibshahid2013/max-kanban
-- Kanban v2: DnD, XP/level/streak, improved contrast.
-- Server endpoints shipped:
-  - /api/tasks (CRUD)
-  - /api/inbox (NLP → task)
+## Kanban integration rules (single-user)
+- If Hassan creates a task, Max auto-starts the highest priority TODO/BACKLOG and moves it to **DOING**.
+- Preferred explicit assignment still supported: title starts with `Max:` or tags include `max/ai`.
 
-## Immediate priorities
-1) Make persistence real (DB-backed), not just local.
-2) Add search + quick-add.
-3) Add per-task activity log (“Max updates”).
-4) Build a reliable “talk to Max → task appears on board” loop.
+## New backlog (imported from your “Claude Code Workflow System” plan)
+I added the following top-priority tasks to the board (lean starting point):
+- Define response formatting rules (WhatsApp-first)
+- Build AI capability matrix
+- Define task routing logic (multi-AI orchestration)
+- Calendar audit workflow
+- Email triage workflow
+- Idea-to-spec workflow
+- Convert remaining epics/tasks into Kanban items
 
-## Team review: what we should fix next (draft)
-- Current server sync is polling + best-effort writes; needs a real DB connection and a proper sync strategy.
-- Auth is removed; single-user token auth for the API should be enabled when DB is live.
-- UI needs:
-  - a visible drag handle (not whole-card drag)
-  - clearer tap targets on mobile
-  - reduce visual noise (borders/shadows) while keeping contrast
-
-## What I’m implementing next (no approval needed)
-- Add a search box + filter chips (status/priority/tag)
-- Add “Quick add” input: type a sentence, it parses tags/priority/status/xp and creates a card
-- Add activity log (client-side first; DB-backed once DB is connected)
-
-## What you need to do once (DB)
-To enable DB-backed tasks:
-- Attach a Postgres/Neon DB to the Vercel project max-kanban and ensure env vars are present.
-
-Once that’s done, /api/tasks will persist and the board will become truly shared across devices.
+## UI/UX direction (condensed)
+- Reduce visual noise: flatter cards, consistent typography/spacing.
+- Dedicated drag handle + non-drag move action for mobile.
+- Instant capture input + `/` search.
+- Keep gamification compact (ambient HUD).
