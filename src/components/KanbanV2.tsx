@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { toast, Toaster } from "sonner";
 
@@ -11,49 +11,32 @@ import { DragTask } from "@/components/DragTask";
 import { DropColumn } from "@/components/DropColumn";
 
 const COLS: { id: ColumnId; name: string; head: string; accent: string }[] = [
-  {
-    id: "BACKLOG",
-    name: "Backlog",
-    head: "bg-slate-100 text-slate-950 border-slate-200",
-    accent: "border-l-slate-500",
-  },
-  {
-    id: "TODO",
-    name: "To Do",
-    head: "bg-amber-100 text-amber-950 border-amber-200",
-    accent: "border-l-amber-500",
-  },
-  {
-    id: "DOING",
-    name: "In Progress",
-    head: "bg-blue-100 text-blue-950 border-blue-200",
-    accent: "border-l-blue-500",
-  },
-  {
-    id: "BLOCKED",
-    name: "Blocked",
-    head: "bg-red-100 text-red-950 border-red-200",
-    accent: "border-l-red-500",
-  },
-  {
-    id: "DONE",
-    name: "Done",
-    head: "bg-emerald-100 text-emerald-950 border-emerald-200",
-    accent: "border-l-emerald-600",
-  },
+  { id: "BACKLOG", name: "Backlog", head: "bg-slate-100 text-slate-950 border-slate-200", accent: "border-l-slate-500" },
+  { id: "TODO", name: "To Do", head: "bg-amber-100 text-amber-950 border-amber-200", accent: "border-l-amber-500" },
+  { id: "DOING", name: "In Progress", head: "bg-blue-100 text-blue-950 border-blue-200", accent: "border-l-blue-500" },
+  { id: "BLOCKED", name: "Blocked", head: "bg-red-100 text-red-950 border-red-200", accent: "border-l-red-500" },
+  { id: "DONE", name: "Done", head: "bg-emerald-100 text-emerald-950 border-emerald-200", accent: "border-l-emerald-600" },
 ];
 
 function priClass(p: Priority) {
   switch (p) {
     case "URGENT":
-      return "bg-red-100 text-red-800";
+      return "bg-red-100 text-red-900";
     case "HIGH":
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-100 text-orange-900";
     case "MEDIUM":
-      return "bg-slate-100 text-slate-800";
+      return "bg-slate-100 text-slate-900";
     case "LOW":
-      return "bg-emerald-100 text-emerald-800";
+      return "bg-emerald-100 text-emerald-900";
   }
+}
+
+async function fetchServerTasks() {
+  const res = await fetch("/api/tasks", { cache: "no-store" });
+  if (!res.ok) throw new Error("fetch failed");
+  const data = await res.json();
+  if (!data.ok) throw new Error("bad response");
+  return data.tasks as any[];
 }
 
 export function KanbanV2() {
@@ -69,16 +52,38 @@ export function KanbanV2() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Server sync: poll every 10s; if server isn't configured, ignore errors.
+  useEffect(() => {
+    let alive = true;
+    const pull = async () => {
+      try {
+        const serverTasks = await fetchServerTasks();
+        if (!alive) return;
+        // Merge by id: server wins.
+        const merged = new Map<string, any>();
+        for (const t of tasks) merged.set(t.id, t);
+        for (const st of serverTasks) merged.set(st.id, st);
+        const next = Array.from(merged.values());
+        // Replace tasks without touching stats.
+        // (Zustand setState signature differs across versions; keep it simple.)
+        useStore.setState({ tasks: next });
+      } catch {
+        // no-op
+      }
+    };
+    pull();
+    const id = setInterval(pull, 10000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const selected = useMemo(() => tasks.find((t) => t.id === selectedId) ?? null, [tasks, selectedId]);
 
   const byCol = useMemo(() => {
-    const map: Record<ColumnId, typeof tasks> = {
-      BACKLOG: [],
-      TODO: [],
-      DOING: [],
-      BLOCKED: [],
-      DONE: [],
-    };
+    const map: Record<ColumnId, typeof tasks> = { BACKLOG: [], TODO: [], DOING: [], BLOCKED: [], DONE: [] };
     for (const t of tasks) map[t.columnId].push(t);
     for (const k of Object.keys(map) as ColumnId[]) map[k].sort((a, b) => b.updatedAt - a.updatedAt);
     return map;
@@ -101,6 +106,13 @@ export function KanbanV2() {
 
       moveTask(taskId, col);
       if (col === "DONE") toast.success(`+${prev.xpReward} XP`);
+
+      // Best-effort server update
+      fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: taskId, columnId: col }),
+      }).catch(() => {});
     },
     [moveTask, tasks]
   );
@@ -138,7 +150,7 @@ export function KanbanV2() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Max Kanban</h1>
-          <p className="mt-1 text-slate-600">Drag tasks between columns. Stored locally (for now).</p>
+          <p className="mt-1 text-slate-600">Drag tasks between columns. Server sync enabled when DB is configured.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800" onClick={() => setCreateOpen(true)}>
@@ -160,14 +172,10 @@ export function KanbanV2() {
         <div className="mt-6 grid gap-4 md:grid-cols-5">
           {COLS.map((col) => (
             <div key={col.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div
-                className={`rounded-t-2xl border-b px-3 py-2 ${col.head} border-l-4 ${col.accent}`}
-              >
+              <div className={`rounded-t-2xl border-b px-3 py-2 ${col.head} border-l-4 ${col.accent}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold">{col.name}</div>
-                  <div className="rounded-full border border-black/10 bg-white px-2 py-0.5 text-xs text-slate-900">
-                    {byCol[col.id].length}
-                  </div>
+                  <div className="rounded-full border border-black/10 bg-white px-2 py-0.5 text-xs text-slate-900">{byCol[col.id].length}</div>
                 </div>
               </div>
 
@@ -175,10 +183,7 @@ export function KanbanV2() {
                 <div className="min-h-[280px] space-y-2 rounded-b-2xl bg-white p-3">
                   {byCol[col.id].map((t) => (
                     <DragTask key={t.id} id={t.id}>
-                      <div
-                        className="cursor-grab rounded-xl border border-slate-300 bg-white p-3 shadow-sm hover:bg-slate-50 hover:shadow"
-                        onDoubleClick={() => setSelectedId(t.id)}
-                      >
+                      <div className="cursor-grab rounded-xl border border-slate-300 bg-white p-3 shadow-sm hover:bg-slate-50 hover:shadow" onDoubleClick={() => setSelectedId(t.id)}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="text-sm font-medium text-slate-900">{t.title}</div>
                           <div className={`rounded-full px-2 py-0.5 text-xs ${priClass(t.priority)}`}>{t.priority}</div>
@@ -214,6 +219,12 @@ export function KanbanV2() {
           onCreate={(vals) => {
             addTask(vals);
             setCreateOpen(false);
+            // best-effort server create
+            fetch("/api/tasks", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(vals),
+            }).catch(() => {});
           }}
         />
       </Modal>
@@ -222,9 +233,17 @@ export function KanbanV2() {
         {selected ? (
           <TaskDetail
             task={selected}
-            onChange={(patch) => updateTask(selected.id, patch)}
+            onChange={(patch) => {
+              updateTask(selected.id, patch);
+              fetch("/api/tasks", {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ id: selected.id, ...patch }),
+              }).catch(() => {});
+            }}
             onDelete={() => {
               deleteTask(selected.id);
+              fetch(`/api/tasks?id=${encodeURIComponent(selected.id)}`, { method: "DELETE" }).catch(() => {});
               setSelectedId(null);
             }}
           />
@@ -253,10 +272,7 @@ function CreateTaskForm({
       title,
       description,
       priority,
-      tags: tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
       xpReward,
       columnId: col,
     });
@@ -289,14 +305,7 @@ function CreateTaskForm({
         </div>
         <div>
           <label className="text-sm font-medium">XP reward</label>
-          <input
-            type="number"
-            className="mt-1 w-full rounded-lg border px-3 py-2"
-            value={xpReward}
-            onChange={(e) => setXpReward(Number(e.target.value))}
-            min={0}
-            max={500}
-          />
+          <input type="number" className="mt-1 w-full rounded-lg border px-3 py-2" value={xpReward} onChange={(e) => setXpReward(Number(e.target.value))} min={0} max={500} />
         </div>
         <div>
           <label className="text-sm font-medium">Tags</label>
@@ -317,15 +326,7 @@ function CreateTaskForm({
   );
 }
 
-function TaskDetail({
-  task,
-  onChange,
-  onDelete,
-}: {
-  task: { title: string; description: string; tags: string[]; priority: Priority; columnId: ColumnId; xpReward: number; updatedAt: number };
-  onChange: (patch: any) => void;
-  onDelete: () => void;
-}) {
+function TaskDetail({ task, onChange, onDelete }: { task: any; onChange: (patch: any) => void; onDelete: () => void }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
