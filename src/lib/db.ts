@@ -31,6 +31,12 @@ export async function ensureSchema() {
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     );
+
+    create table if not exists status_kv (
+      key text primary key,
+      payload text not null default '{}',
+      updated_at timestamptz not null default now()
+    );
   `);
 }
 

@@ -10,24 +10,24 @@ import { Modal } from "@/components/Modal";
 import { DragTask } from "@/components/DragTask";
 import { DropColumn } from "@/components/DropColumn";
 
-const COLS: { id: ColumnId; name: string; head: string; accent: string }[] = [
-  { id: "BACKLOG", name: "Backlog", head: "bg-slate-100 text-slate-950 border-slate-200", accent: "border-l-slate-500" },
-  { id: "TODO", name: "To Do", head: "bg-amber-100 text-amber-950 border-amber-200", accent: "border-l-amber-500" },
-  { id: "DOING", name: "In Progress", head: "bg-blue-100 text-blue-950 border-blue-200", accent: "border-l-blue-500" },
-  { id: "BLOCKED", name: "Blocked", head: "bg-red-100 text-red-950 border-red-200", accent: "border-l-red-500" },
-  { id: "DONE", name: "Done", head: "bg-emerald-100 text-emerald-950 border-emerald-200", accent: "border-l-emerald-600" },
+const COLS: { id: ColumnId; name: string; head: string; accent: string; badge: string }[] = [
+  { id: "BACKLOG", name: "Backlog", head: "bg-slate-900/70 text-slate-100 border-slate-800", accent: "border-l-slate-500", badge: "bg-slate-800 text-slate-100" },
+  { id: "TODO", name: "To Do", head: "bg-slate-900/70 text-slate-100 border-slate-800", accent: "border-l-amber-400", badge: "bg-amber-400/15 text-amber-200" },
+  { id: "DOING", name: "In Progress", head: "bg-slate-900/70 text-slate-100 border-slate-800", accent: "border-l-sky-400", badge: "bg-sky-400/15 text-sky-200" },
+  { id: "BLOCKED", name: "Blocked", head: "bg-slate-900/70 text-slate-100 border-slate-800", accent: "border-l-red-400", badge: "bg-red-400/15 text-red-200" },
+  { id: "DONE", name: "Done", head: "bg-slate-900/70 text-slate-100 border-slate-800", accent: "border-l-emerald-400", badge: "bg-emerald-400/15 text-emerald-200" },
 ];
 
 function priClass(p: Priority) {
   switch (p) {
     case "URGENT":
-      return "bg-red-100 text-red-900";
+      return "bg-red-400/15 text-red-200 border border-red-400/30";
     case "HIGH":
-      return "bg-orange-100 text-orange-900";
+      return "bg-orange-400/15 text-orange-200 border border-orange-400/30";
     case "MEDIUM":
-      return "bg-slate-100 text-slate-900";
+      return "bg-slate-800 text-slate-200 border border-slate-700";
     case "LOW":
-      return "bg-emerald-100 text-emerald-900";
+      return "bg-emerald-400/15 text-emerald-200 border border-emerald-400/30";
   }
 }
 
@@ -149,20 +149,20 @@ export function KanbanV2() {
       <Toaster richColors />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Max Kanban</h1>
-          <p className="mt-1 text-slate-600">Drag tasks between columns. Server sync enabled when DB is configured.</p>
+          <h1 className="text-2xl font-semibold text-slate-100">Max Kanban</h1>
+          <p className="mt-1 text-slate-300">Drag tasks between columns. Server sync enabled when DB is configured.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800" onClick={() => setCreateOpen(true)}>
+          <button className="rounded-lg bg-amber-500 px-4 py-2 font-medium text-slate-950 hover:bg-amber-400" onClick={() => setCreateOpen(true)}>
             New task
           </button>
-          <button className="rounded-lg border px-3 py-2 hover:bg-slate-50" onClick={doExport}>
+          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={doExport}>
             Export
           </button>
-          <button className="rounded-lg border px-3 py-2 hover:bg-slate-50" onClick={doImport}>
+          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={doImport}>
             Import
           </button>
-          <button className="rounded-lg border px-3 py-2 hover:bg-slate-50" onClick={clearAll}>
+          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={clearAll}>
             Clear
           </button>
         </div>
@@ -171,24 +171,27 @@ export function KanbanV2() {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <div className="mt-6 grid gap-4 md:grid-cols-5">
           {COLS.map((col) => (
-            <div key={col.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div key={col.id} className="rounded-2xl border border-slate-800 bg-slate-950/30 shadow-sm">
               <div className={`rounded-t-2xl border-b px-3 py-2 ${col.head} border-l-4 ${col.accent}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold">{col.name}</div>
-                  <div className="rounded-full border border-black/10 bg-white px-2 py-0.5 text-xs text-slate-900">{byCol[col.id].length}</div>
+                  <div className={`rounded-full px-2 py-0.5 text-xs ${col.badge}`}>{byCol[col.id].length}</div>
                 </div>
               </div>
 
               <DropColumn id={`col:${col.id}`}>
-                <div className="min-h-[280px] space-y-2 rounded-b-2xl bg-white p-3">
+                <div className="min-h-[280px] space-y-2 rounded-b-2xl bg-slate-950/10 p-3">
                   {byCol[col.id].map((t) => (
                     <DragTask key={t.id} id={t.id}>
-                      <div className="cursor-grab rounded-xl border border-slate-300 bg-white p-3 shadow-sm hover:bg-slate-50 hover:shadow" onDoubleClick={() => setSelectedId(t.id)}>
+                      <div
+                        className="cursor-grab rounded-xl border border-slate-800 bg-slate-900/40 p-3 shadow-sm hover:bg-slate-900/70"
+                        onDoubleClick={() => setSelectedId(t.id)}
+                      >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="text-sm font-medium text-slate-900">{t.title}</div>
+                          <div className="text-sm font-medium text-slate-100">{t.title}</div>
                           <div className={`rounded-full px-2 py-0.5 text-xs ${priClass(t.priority)}`}>{t.priority}</div>
                         </div>
-                        <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                        <div className="mt-2 flex items-center justify-between text-xs text-slate-300">
                           <span>XP {t.xpReward}</span>
                           {t.tags.length ? <span>{t.tags.slice(0, 2).join(", ")}{t.tags.length > 2 ? "…" : ""}</span> : <span />}
                         </div>
@@ -200,7 +203,7 @@ export function KanbanV2() {
 
               <div className="px-3 pb-3">
                 <button
-                  className="w-full rounded-xl border px-3 py-2 text-sm hover:bg-slate-50"
+                  className="w-full rounded-xl border border-slate-800 bg-slate-900/30 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900"
                   onClick={() => {
                     (window as any).__MK_DEFAULT_COL__ = col.id;
                     setCreateOpen(true);
