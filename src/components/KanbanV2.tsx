@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragEndEvent, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { toast, Toaster } from "sonner";
 
@@ -52,6 +52,10 @@ export function KanbanV2() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const colRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [activeCol, setActiveCol] = useState<ColumnId>("TODO");
+
   // Server sync: poll every 10s; if server isn't configured, ignore errors.
   useEffect(() => {
     let alive = true;
@@ -81,6 +85,52 @@ export function KanbanV2() {
   }, []);
 
   const selected = useMemo(() => tasks.find((t) => t.id === selectedId) ?? null, [tasks, selectedId]);
+
+  const scrollToCol = useCallback((id: ColumnId) => {
+    const idx = COLS.findIndex((c) => c.id === id);
+    const el = colRefs.current[idx];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    setActiveCol(id);
+  }, []);
+
+  // Track active column on mobile swipe (best-effort).
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rect = scroller.getBoundingClientRect();
+        const mid = rect.left + rect.width / 2;
+
+        let bestId: ColumnId | null = null;
+        let bestDist = Number.POSITIVE_INFINITY;
+
+        COLS.forEach((c, i) => {
+          const el = colRefs.current[i];
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          const center = r.left + r.width / 2;
+          const d = Math.abs(center - mid);
+          if (d < bestDist) {
+            bestDist = d;
+            bestId = c.id;
+          }
+        });
+
+        if (bestId) setActiveCol(bestId);
+      });
+    };
+
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      scroller.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   const byCol = useMemo(() => {
     const map: Record<ColumnId, typeof tasks> = { BACKLOG: [], TODO: [], DOING: [], BLOCKED: [], DONE: [] };
@@ -147,31 +197,63 @@ export function KanbanV2() {
   return (
     <div>
       <Toaster richColors />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-100">Max Kanban</h1>
-          <p className="mt-1 text-slate-300">Drag tasks between columns. Server sync enabled when DB is configured.</p>
+      {/* Mobile-first sticky header (project-manager feel) */}
+      <div className="sticky top-0 z-10 -mx-6 border-b border-slate-800/60 bg-slate-950/85 px-6 py-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold text-slate-100 md:text-2xl">Max Kanban</h1>
+            <p className="mt-0.5 hidden text-sm text-slate-300 md:block">Drag tasks between columns. Server sync enabled when DB is configured.</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400" onClick={() => setCreateOpen(true)}>
+              New
+            </button>
+            <button className="hidden rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900 md:inline-flex" onClick={doExport}>
+              Export
+            </button>
+            <button className="hidden rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900 md:inline-flex" onClick={doImport}>
+              Import
+            </button>
+            <button className="hidden rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 hover:bg-slate-900 md:inline-flex" onClick={clearAll}>
+              Clear
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="rounded-lg bg-amber-500 px-4 py-2 font-medium text-slate-950 hover:bg-amber-400" onClick={() => setCreateOpen(true)}>
-            New task
-          </button>
-          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={doExport}>
-            Export
-          </button>
-          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={doImport}>
-            Import
-          </button>
-          <button className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-slate-100 hover:bg-slate-900" onClick={clearAll}>
-            Clear
-          </button>
+
+        {/* Column "tabs" (tap to jump; swipe to navigate) */}
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
+          {COLS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => scrollToCol(c.id)}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                activeCol === c.id
+                  ? "border-slate-600 bg-slate-900 text-slate-100"
+                  : "border-slate-800 bg-slate-950/30 text-slate-300"
+              }`}
+            >
+              {c.name} <span className="ml-1 text-slate-400">{byCol[c.id].length}</span>
+            </button>
+          ))}
         </div>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <div className="mt-6 grid gap-4 md:grid-cols-5">
-          {COLS.map((col) => (
-            <div key={col.id} className="rounded-2xl border border-slate-800 bg-slate-950/30 shadow-sm">
+        {/* Desktop grid; Mobile swipe (scroll-snap) */}
+        <div
+          ref={scrollerRef}
+          className="mt-4 -mx-6 flex gap-4 overflow-x-auto px-6 pb-2 md:mx-0 md:mt-6 md:grid md:grid-cols-5 md:overflow-visible md:px-0 md:pb-0"
+          style={{ scrollSnapType: "x mandatory" }}
+        >
+          {COLS.map((col, idx) => (
+            <div
+              key={col.id}
+              ref={(el) => {
+                colRefs.current[idx] = el;
+              }}
+              className="rounded-2xl border border-slate-800 bg-slate-950/30 shadow-sm md:w-auto w-[85vw] max-w-[420px] shrink-0"
+              style={{ scrollSnapAlign: "start" }}
+            >
               <div className={`rounded-t-2xl border-b px-3 py-2 ${col.head} border-l-4 ${col.accent}`}>
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold">{col.name}</div>
